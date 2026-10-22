@@ -1,0 +1,1807 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Design and Performance Evaluation of an Energy-Aware Disk Scheduling Algorithm</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+:root {
+  --bg: #090d16;
+  --bg-card: rgba(18, 26, 44, 0.75);
+  --border: rgba(99, 132, 255, 0.18);
+  --border-focus: #4f80ff;
+  --primary: #4f80ff;
+  --primary-glow: rgba(79, 128, 255, 0.35);
+  --accent-green: #10b981;
+  --accent-amber: #f59e0b;
+  --accent-purple: #a855f7;
+  --accent-rose: #f43f5e;
+  --text: #f1f5f9;
+  --text-muted: #94a3b8;
+  --text-dim: #64748b;
+  --track-bg: #0d1527;
+  --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  background-image: 
+    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(79, 128, 255, 0.18), transparent 70%),
+    radial-gradient(circle at 10% 90%, rgba(16, 185, 129, 0.08), transparent 40%),
+    radial-gradient(circle at 90% 80%, rgba(168, 85, 247, 0.08), transparent 40%);
+  color: var(--text);
+  font-family: var(--font-sans);
+  min-height: 100vh;
+  padding: 1.5rem 1rem 3rem;
+  line-height: 1.5;
+}
+
+.container {
+  max-width: 1380px;
+  margin: 0 auto;
+}
+
+header {
+  text-align: center;
+  margin-bottom: 2rem;
+  padding: 1rem;
+}
+
+.badge-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.9rem;
+  background: rgba(79, 128, 255, 0.12);
+  border: 1px solid rgba(79, 128, 255, 0.3);
+  border-radius: 999px;
+  color: #93c5fd;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  margin-bottom: 0.85rem;
+}
+
+h1 {
+  font-size: clamp(1.6rem, 3.5vw, 2.4rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  background: linear-gradient(135deg, #ffffff 0%, #cbd5e1 50%, #93c5fd 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin-bottom: 0.5rem;
+}
+
+.subtitle {
+  color: var(--text-muted);
+  font-size: clamp(0.9rem, 1.8vw, 1.05rem);
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+/* ELI5 Concept Guide */
+.eli5-banner {
+  background: linear-gradient(135deg, rgba(79, 128, 255, 0.12), rgba(16, 185, 129, 0.08));
+  border: 1px solid rgba(79, 128, 255, 0.25);
+  border-radius: 16px;
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 2rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1.25rem;
+  backdrop-filter: blur(12px);
+}
+
+.eli5-icon {
+  font-size: 2.2rem;
+  background: rgba(255, 255, 255, 0.08);
+  width: 54px;
+  height: 54px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  flex-shrink: 0;
+}
+
+.eli5-text h3 {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #fff;
+  margin-bottom: 0.2rem;
+}
+
+.eli5-text p {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+}
+
+.eli5-steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 0.75rem;
+  width: 100%;
+  margin-top: 0.5rem;
+}
+
+.eli5-step {
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+  padding: 0.75rem;
+  font-size: 0.8rem;
+}
+
+.eli5-step strong {
+  color: #60a5fa;
+  display: block;
+  margin-bottom: 0.2rem;
+}
+
+/* Grid Layout */
+.grid-layout {
+  display: grid;
+  grid-template-columns: 380px 1fr;
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+@media (max-width: 1024px) {
+  .grid-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 1.5rem;
+  backdrop-filter: blur(16px);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  position: relative;
+  overflow: hidden;
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.25rem;
+  padding-bottom: 0.85rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.card-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  color: #fff;
+}
+
+/* Inputs & Form */
+.presets-group {
+  margin-bottom: 1.25rem;
+}
+
+.presets-group label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  display: block;
+  margin-bottom: 0.4rem;
+}
+
+.presets-select {
+  width: 100%;
+  padding: 0.65rem 0.85rem;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: rgba(13, 21, 39, 0.85);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.form-group {
+  margin-bottom: 1rem;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #cbd5e1;
+  margin-bottom: 0.35rem;
+}
+
+label .hint {
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  font-weight: 400;
+}
+
+input[type="number"],
+input[type="text"],
+select {
+  width: 100%;
+  padding: 0.65rem 0.85rem;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: rgba(13, 21, 39, 0.85);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.875rem;
+  transition: all 0.2s ease;
+}
+
+input:focus, select:focus {
+  outline: none;
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 3px var(--primary-glow);
+}
+
+.range-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.range-wrap input[type="range"] {
+  flex: 1;
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+
+.range-val {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  color: #93c5fd;
+  min-width: 38px;
+  text-align: right;
+  font-weight: 600;
+}
+
+/* Action Buttons */
+.btn-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.6rem;
+  margin-top: 1.25rem;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-radius: 12px;
+  font-family: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  color: #fff;
+  box-shadow: 0 4px 15px var(--primary-glow);
+}
+
+.btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(59, 130, 246, 0.5);
+}
+
+.btn-secondary {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #e2e8f0;
+}
+
+.btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.btn-outline {
+  background: transparent;
+  border: 1px solid rgba(244, 63, 94, 0.4);
+  color: #fda4af;
+}
+
+.btn-outline:hover {
+  background: rgba(244, 63, 94, 0.1);
+}
+
+.btn-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.6rem;
+}
+
+/* Physical Hardware Track Animator */
+.visualizer-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.anim-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  background: rgba(0, 0, 0, 0.25);
+  padding: 0.75rem 1rem;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.anim-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.btn-icon {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #fff;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.btn-icon:hover {
+  background: var(--primary);
+}
+
+.anim-status {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: #94a3b8;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.status-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent-green);
+  box-shadow: 0 0 8px var(--accent-green);
+}
+
+.disk-track-container {
+  background: var(--track-bg);
+  border: 1px solid rgba(79, 128, 255, 0.2);
+  border-radius: 16px;
+  padding: 2.2rem 1.5rem 1.5rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.disk-rail {
+  position: relative;
+  height: 24px;
+  background: linear-gradient(90deg, #1e293b, #334155, #1e293b);
+  border-radius: 12px;
+  margin: 1.5rem 0 2.5rem;
+  box-shadow: inset 0 2px 6px rgba(0,0,0,0.6);
+}
+
+.rail-ticks {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: space-between;
+  padding-top: 0.5rem;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--text-dim);
+}
+
+.disk-head {
+  position: absolute;
+  top: 50%;
+  left: 0%;
+  transform: translate(-50%, -50%);
+  width: 34px;
+  height: 48px;
+  z-index: 10;
+  transition: left 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.head-arm {
+  position: absolute;
+  top: -20px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 4px;
+  height: 24px;
+  background: linear-gradient(to bottom, #93c5fd, #3b82f6);
+  border-radius: 2px;
+}
+
+.head-body {
+  width: 32px;
+  height: 32px;
+  background: #3b82f6;
+  border: 3px solid #fff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 800;
+  box-shadow: 0 0 16px rgba(59, 130, 246, 0.8);
+}
+
+.head-label {
+  position: absolute;
+  top: 110%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1e293b;
+  border: 1px solid #3b82f6;
+  border-radius: 6px;
+  padding: 0.2rem 0.5rem;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #93c5fd;
+  white-space: nowrap;
+}
+
+.request-pin {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #64748b;
+  border: 2px solid #0f172a;
+  transition: all 0.3s;
+  z-index: 5;
+}
+
+.request-pin.pending {
+  background: var(--accent-amber);
+  box-shadow: 0 0 8px var(--accent-amber);
+}
+
+.request-pin.current {
+  background: var(--accent-rose);
+  box-shadow: 0 0 12px var(--accent-rose);
+  transform: translate(-50%, -50%) scale(1.4);
+}
+
+.request-pin.serviced {
+  background: var(--accent-green);
+  opacity: 0.6;
+}
+
+.pin-label {
+  position: absolute;
+  bottom: 120%;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.chart-container {
+  position: relative;
+  height: 320px;
+  width: 100%;
+}
+
+/* Metric Trophy Cards */
+.trophies-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.trophy-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 1.25rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.trophy-card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 4px;
+  height: 100%;
+}
+
+.trophy-card.green::after { background: var(--accent-green); }
+.trophy-card.blue::after { background: var(--primary); }
+.trophy-card.purple::after { background: var(--accent-purple); }
+.trophy-card.amber::after { background: var(--accent-amber); }
+
+.trophy-icon {
+  font-size: 2rem;
+  background: rgba(255, 255, 255, 0.05);
+  width: 50px;
+  height: 50px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.trophy-info .title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.trophy-info .val {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: #fff;
+  margin: 0.15rem 0;
+}
+
+.trophy-info .sub {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+}
+
+/* Comparison Charts Grid */
+.charts-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+@media (max-width: 900px) {
+  .charts-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Table Styling */
+.table-card {
+  margin-bottom: 2rem;
+}
+
+.table-responsive {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  text-align: left;
+}
+
+th {
+  background: rgba(0, 0, 0, 0.3);
+  color: var(--text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.72rem;
+  letter-spacing: 0.05em;
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+td {
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  color: #cbd5e1;
+}
+
+tr:hover td {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.algo-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.25rem 0.6rem;
+  border-radius: 6px;
+  font-weight: 700;
+  font-size: 0.8rem;
+}
+
+.badge-energy {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.badge-fcfs { background: rgba(148, 163, 184, 0.15); color: #cbd5e1; }
+.badge-sstf { background: rgba(59, 130, 246, 0.15); color: #93c5fd; }
+.badge-scan { background: rgba(245, 158, 11, 0.15); color: #fcd34d; }
+.badge-cscan { background: rgba(236, 72, 153, 0.15); color: #f472b6; }
+.badge-look { background: rgba(168, 85, 247, 0.15); color: #c084fc; }
+.badge-clook { background: rgba(6, 182, 212, 0.15); color: #67e8f9; }
+
+/* Plain-English Encyclopedia */
+.encyclopedia-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.25rem;
+}
+
+.algo-card {
+  background: rgba(18, 26, 44, 0.5);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 1.2rem;
+  transition: all 0.2s;
+}
+
+.algo-card:hover {
+  border-color: rgba(79, 128, 255, 0.4);
+  transform: translateY(-2px);
+}
+
+.algo-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.6rem;
+}
+
+.algo-name {
+  font-weight: 700;
+  font-size: 1rem;
+  color: #fff;
+}
+
+.algo-analogy {
+  font-size: 0.75rem;
+  color: #93c5fd;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.algo-desc {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.algo-pros-cons {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  font-size: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.pro { color: #34d399; }
+.con { color: #f87171; }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <header>
+    <div class="badge-pill">⚡ Operating Systems Laboratory Project</div>
+    <h1>Energy-Aware Disk Scheduling Simulator</h1>
+    <p class="subtitle">Design, simulation, and performance evaluation of Green Operating System algorithms balancing seek distance, waiting time, and energy consumption.</p>
+  </header>
+
+  <div class="eli5-banner">
+    <div class="eli5-icon">💡</div>
+    <div class="eli5-text" style="flex:1">
+      <h3>How Hard Disk Scheduling Works (Simple Guide)</h3>
+      <p>A Hard Disk has spinning circular tracks and a mechanical arm that moves back and forth to read data. <strong>Moving the arm uses mechanical energy and takes time.</strong> Disk scheduling algorithms decide the smartest order to visit requested tracks so the drive uses minimal power without making requests wait forever.</p>
+    </div>
+    <div class="eli5-steps">
+      <div class="eli5-step">
+        <strong>1. Track Requests</strong>
+        Apps ask for data scattered across cylinders (e.g. 14, 98, 183).
+      </div>
+      <div class="eli5-step">
+        <strong>2. Head Motion (Seek)</strong>
+        The mechanical arm jumps between tracks, burning electric power.
+      </div>
+      <div class="eli5-step">
+        <strong>3. Energy Trade-off</strong>
+        Greedy algorithms save motion but starve far tracks. Energy-Aware balances both!
+      </div>
+    </div>
+  </div>
+
+  <div class="grid-layout">
+    <!-- Sidebar Inputs -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">
+          <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/></svg>
+          Simulation Parameters
+        </div>
+      </div>
+
+      <div class="presets-group">
+        <label>Quick Presets</label>
+        <select id="presetSelect" class="presets-select">
+          <option value="galvin">🎓 Classic Galvin OS Textbook (Head: 53)</option>
+          <option value="clustered">⚡ High Locality Clusters (Head: 50)</option>
+          <option value="wide">🌐 Wide Dispersion Spread (Head: 100)</option>
+          <option value="starve">⚠️ Heavy Starvation Risk (Head: 50)</option>
+        </select>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>Disk Cylinders <span class="hint">[0 to N-1]</span></label>
+          <input type="number" id="diskSize" value="200" min="50" max="10000">
+        </div>
+        <div class="form-group">
+          <label>Initial Head <span class="hint">Start pos</span></label>
+          <input type="number" id="headPos" value="53" min="0">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Initial Direction <span class="hint">For SCAN / LOOK</span></label>
+        <select id="direction">
+          <option value="right" selected>Right (Towards higher tracks ↗)</option>
+          <option value="left">Left (Towards track 0 ↙)</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>Request Queue <span class="hint" id="queueCountBadge">8 requests</span></label>
+        <input type="text" id="requestQueue" value="98, 183, 37, 122, 14, 124, 65, 67" placeholder="e.g. 98, 183, 37, 122">
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>α: Seek Weight <span class="hint">Energy priority</span></label>
+          <div class="range-wrap">
+            <input type="range" id="alpha" min="0.1" max="5" step="0.1" value="1.0">
+            <span class="range-val" id="alphaVal">1.0</span>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>β: Wait Weight <span class="hint">Anti-starvation</span></label>
+          <div class="range-wrap">
+            <input type="range" id="beta" min="0.0" max="2" step="0.05" value="0.20">
+            <span class="range-val" id="betaVal">0.20</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>Base Energy (J) <span class="hint">Idle power</span></label>
+          <input type="number" id="baseEnergy" value="5.0" step="0.5">
+        </div>
+        <div class="form-group">
+          <label>Energy / Cyl (J) <span class="hint">Per cylinder seek</span></label>
+          <input type="number" id="energyFactor" value="0.05" step="0.01">
+        </div>
+      </div>
+
+      <div class="btn-grid">
+        <button id="runBtn" class="btn btn-primary">
+          <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          Run Full Simulation
+        </button>
+        <div class="btn-row">
+          <button id="randBtn" class="btn btn-secondary">🎲 Randomize</button>
+          <button id="resetBtn" class="btn btn-outline">🔄 Reset</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Live Arm & Track Animator -->
+    <div class="visualizer-section">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">
+            <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/></svg>
+            Live Hardware Arm & Track Animator
+          </div>
+          <div style="display:flex; align-items:center; gap:0.5rem;">
+            <span style="font-size:0.75rem; color:var(--text-muted);">View Algorithm:</span>
+            <select id="animAlgoSelect" style="width:auto; padding:0.35rem 0.6rem; font-size:0.8rem;">
+              <option value="energy_aware">Proposed Energy-Aware</option>
+              <option value="fcfs">FCFS</option>
+              <option value="sstf">SSTF</option>
+              <option value="scan">SCAN</option>
+              <option value="cscan">C-SCAN</option>
+              <option value="look">LOOK</option>
+              <option value="clook">C-LOOK</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="disk-track-container">
+          <div class="disk-rail" id="diskRail">
+            <div class="disk-head" id="diskHead" style="left: 26.5%;">
+              <div class="head-arm"></div>
+              <div class="head-body">H</div>
+              <div class="head-label" id="headLabel">Cyl: 53</div>
+            </div>
+          </div>
+          <div class="rail-ticks">
+            <span>Track 0</span>
+            <span>Track <span id="tickMid">100</span></span>
+            <span>Track <span id="tickMax">199</span></span>
+          </div>
+        </div>
+
+        <div class="anim-toolbar">
+          <div class="anim-controls">
+            <button id="playBtn" class="btn-icon" title="Play / Pause">▶</button>
+            <button id="stepPrevBtn" class="btn-icon" title="Previous step">⏮</button>
+            <button id="stepNextBtn" class="btn-icon" title="Next step">⏭</button>
+            <button id="restartBtn" class="btn-icon" title="Restart Animation">↺</button>
+          </div>
+          <div class="anim-status">
+            <div class="status-indicator" id="statusInd"></div>
+            <span id="animStatusText">Ready to simulate</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:0.5rem;">
+            <span style="font-size:0.75rem; color:var(--text-muted);">Speed:</span>
+            <select id="speedSelect" style="width:auto; padding:0.3rem 0.5rem; font-size:0.75rem;">
+              <option value="1200">0.5x Slow</option>
+              <option value="600" selected>1x Normal</option>
+              <option value="300">2x Fast</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Seek Path Graph -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">
+            <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"/></svg>
+            Textbook Head Trajectory Path (Seek Graph)
+          </div>
+          <div style="font-size:0.75rem; color:var(--text-muted);">
+            Horizontal: Track Number | Vertical: Execution Step
+          </div>
+        </div>
+        <div class="chart-container">
+          <canvas id="seekPathChart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Performance Metric Trophies -->
+  <div class="trophies-grid" id="trophiesSection">
+    <div class="trophy-card green">
+      <div class="trophy-icon">🌱</div>
+      <div class="trophy-info">
+        <div class="title">Lowest Energy Consumer</div>
+        <div class="val" id="bestEnergyAlgo">--</div>
+        <div class="sub" id="bestEnergyVal">Run simulation to evaluate</div>
+      </div>
+    </div>
+    <div class="trophy-card blue">
+      <div class="trophy-icon">⚡</div>
+      <div class="trophy-info">
+        <div class="title">Shortest Seek Distance</div>
+        <div class="val" id="bestSeekAlgo">--</div>
+        <div class="sub" id="bestSeekVal">Minimal mechanical travel</div>
+      </div>
+    </div>
+    <div class="trophy-card purple">
+      <div class="trophy-icon">⏱️</div>
+      <div class="trophy-info">
+        <div class="title">Lowest Average Wait Time</div>
+        <div class="val" id="bestWaitAlgo">--</div>
+        <div class="sub" id="bestWaitVal">Fastest response to requests</div>
+      </div>
+    </div>
+    <div class="trophy-card amber">
+      <div class="trophy-icon">🛡️</div>
+      <div class="trophy-info">
+        <div class="title">Anti-Starvation Star</div>
+        <div class="val" id="bestBalanceAlgo">Energy-Aware</div>
+        <div class="sub">Optimizes energy while preventing starvation</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Comparison Charts -->
+  <div class="charts-grid">
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Total Head Movement (Cylinders)</div>
+        <span style="font-size:0.75rem; color:#93c5fd;">Lower is better</span>
+      </div>
+      <div class="chart-container">
+        <canvas id="movementChart"></canvas>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Total Energy Consumption (Joules)</div>
+        <span style="font-size:0.75rem; color:#34d399;">Lower is better</span>
+      </div>
+      <div class="chart-container">
+        <canvas id="energyChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Comparison Table -->
+  <div class="card table-card">
+    <div class="card-header">
+      <div class="card-title">
+        <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+        Comparative Performance Evaluation Table
+      </div>
+      <button id="exportCsvBtn" class="btn btn-secondary" style="padding:0.4rem 0.8rem; font-size:0.8rem;">
+        📥 Export CSV
+      </button>
+    </div>
+    <div class="table-responsive">
+      <table id="resultsTable">
+        <thead>
+          <tr>
+            <th>Algorithm</th>
+            <th>Service Order Sequence</th>
+            <th>Total Seek (Cylinders)</th>
+            <th>Avg Seek</th>
+            <th>Avg Waiting Time</th>
+            <th>Energy (Joules)</th>
+            <th>Throughput (req/cyl)</th>
+          </tr>
+        </thead>
+        <tbody id="resultsTableBody">
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Algorithm Encyclopedia -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">
+        <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
+        Algorithm Guide: Explained in Simple Plain English
+      </div>
+    </div>
+    <div class="encyclopedia-grid">
+      <div class="algo-card">
+        <div class="algo-card-top">
+          <span class="algo-name">FCFS</span>
+          <span class="algo-badge badge-fcfs">First-Come First-Served</span>
+        </div>
+        <div class="algo-analogy">🛒 Analogy: The Grocery Checkout Queue</div>
+        <p class="algo-desc">Services requests strictly in the order they arrived. Extremely fair, but the head wildly swings back and forth across the disk, wasting vast amounts of mechanical energy.</p>
+        <div class="algo-pros-cons">
+          <span class="pro">✓ Simple & zero starvation</span>
+          <span class="con">✗ Highest seek distance & energy waste</span>
+        </div>
+      </div>
+
+      <div class="algo-card">
+        <div class="algo-card-top">
+          <span class="algo-name">SSTF</span>
+          <span class="algo-badge badge-sstf">Shortest Seek Time First</span>
+        </div>
+        <div class="algo-analogy">🐝 Analogy: The Greedy Bee</div>
+        <p class="algo-desc">Always jumps to whichever track is closest right now. Yields low seek time, but tracks at the far opposite ends of the disk may starve and wait forever.</p>
+        <div class="algo-pros-cons">
+          <span class="pro">✓ Very low seek distance</span>
+          <span class="con">✗ Starvation risk for distant requests</span>
+        </div>
+      </div>
+
+      <div class="algo-card">
+        <div class="algo-card-top">
+          <span class="algo-name">SCAN</span>
+          <span class="algo-badge badge-scan">Elevator Algorithm</span>
+        </div>
+        <div class="algo-analogy">🛗 Analogy: The Skyscraper Elevator</div>
+        <p class="algo-desc">Moves continuously in one direction servicing tracks on the way until it hits the boundary edge (track 0 or N-1), then reverses direction and sweeps back.</p>
+        <div class="algo-pros-cons">
+          <span class="pro">✓ Smooth predictable motion</span>
+          <span class="con">✗ Wastes time traveling to empty edges</span>
+        </div>
+      </div>
+
+      <div class="algo-card">
+        <div class="algo-card-top">
+          <span class="algo-name">C-SCAN</span>
+          <span class="algo-badge badge-cscan">Circular SCAN</span>
+        </div>
+        <div class="algo-analogy">🎡 Analogy: One-Way Luggage Carousel</div>
+        <p class="algo-desc">Only services tracks moving in one direction. When it hits the far edge, it quickly jumps back to the opposite edge and sweeps again, giving uniform wait times.</p>
+        <div class="algo-pros-cons">
+          <span class="pro">✓ Uniform waiting time</span>
+          <span class="con">✗ Unproductive return jump seek</span>
+        </div>
+      </div>
+
+      <div class="algo-card">
+        <div class="algo-card-top">
+          <span class="algo-name">LOOK</span>
+          <span class="algo-badge badge-look">Smart Elevator</span>
+        </div>
+        <div class="algo-analogy">🏢 Analogy: Elevator that only goes as far as passengers</div>
+        <p class="algo-desc">Like SCAN, but looks ahead. It reverses immediately after servicing the furthest request in that direction, saving energy by never traveling to empty disk boundaries.</p>
+        <div class="algo-pros-cons">
+          <span class="pro">✓ Better energy savings than SCAN</span>
+          <span class="con">✗ Higher wait time variance than C-LOOK</span>
+        </div>
+      </div>
+
+      <div class="algo-card">
+        <div class="algo-card-top">
+          <span class="algo-name">C-LOOK</span>
+          <span class="algo-badge badge-clook">Circular LOOK</span>
+        </div>
+        <div class="algo-analogy">🔄 Analogy: Express Loop Shuttle</div>
+        <p class="algo-desc">Like C-SCAN, but only travels between the lowest and highest actual requested tracks. Eliminates boundary travel on both ends, achieving great efficiency.</p>
+        <div class="algo-pros-cons">
+          <span class="pro">✓ Great all-around conventional algorithm</span>
+          <span class="con">✗ Ignores request wait time in decision score</span>
+        </div>
+      </div>
+
+      <div class="algo-card" style="border-color: rgba(16, 185, 129, 0.4); background: rgba(16, 185, 129, 0.05);">
+        <div class="algo-card-top">
+          <span class="algo-name" style="color:#34d399;">Proposed Energy-Aware</span>
+          <span class="algo-badge badge-energy">Novel OS Algorithm</span>
+        </div>
+        <div class="algo-analogy" style="color:#34d399;">🚗 Analogy: Intelligent Eco-Route GPS</div>
+        <p class="algo-desc">Evaluates a dual objective cost function: <strong>Score = α × SeekDistance - β × WaitTime</strong>. It aggressively minimizes seek distance to conserve actuator energy, while the aging wait-time factor dynamically boosts starving tracks to guarantee fairness!</p>
+        <div class="algo-pros-cons">
+          <span class="pro" style="color:#34d399;">✓ Optimum balance of Energy, Seek & Fairness</span>
+          <span class="pro" style="color:#34d399;">✓ Zero starvation with customizable α and β</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function calculateMetrics(path, headPos, diskSize, baseEnergy, energyFactor) {
+  let totalSeek = 0;
+  let currentSeekTime = 0;
+  let totalWaitTime = 0;
+  const serviceOrder = [];
+
+  for (let i = 1; i < path.length; i++) {
+    const dist = Math.abs(path[i] - path[i - 1]);
+    totalSeek += dist;
+    currentSeekTime += dist;
+    serviceOrder.push(path[i]);
+    totalWaitTime += currentSeekTime;
+  }
+
+  const reqCount = serviceOrder.length;
+  const avgSeek = reqCount > 0 ? (totalSeek / reqCount) : 0;
+  const avgWait = reqCount > 0 ? (totalWaitTime / reqCount) : 0;
+  const energy = baseEnergy + (totalSeek * energyFactor);
+  const throughput = totalSeek > 0 ? (reqCount / totalSeek) : reqCount;
+
+  return {
+    path: path,
+    service_order: serviceOrder,
+    total_movement: totalSeek,
+    avg_seek: parseFloat(avgSeek.toFixed(2)),
+    avg_wait: parseFloat(avgWait.toFixed(2)),
+    energy: parseFloat(energy.toFixed(3)),
+    throughput: parseFloat(throughput.toFixed(4))
+  };
+}
+
+function runFCFS(diskSize, headPos, direction, queue, alpha, beta, baseEnergy, energyFactor) {
+  const path = [headPos, ...queue];
+  return calculateMetrics(path, headPos, diskSize, baseEnergy, energyFactor);
+}
+
+function runSSTF(diskSize, headPos, direction, queue, alpha, beta, baseEnergy, energyFactor) {
+  let pending = [...queue];
+  let curr = headPos;
+  const path = [headPos];
+
+  while (pending.length > 0) {
+    let bestIdx = 0;
+    let minDist = Math.abs(pending[0] - curr);
+    for (let i = 1; i < pending.length; i++) {
+      const d = Math.abs(pending[i] - curr);
+      if (d < minDist) {
+        minDist = d;
+        bestIdx = i;
+      }
+    }
+    curr = pending.splice(bestIdx, 1)[0];
+    path.push(curr);
+  }
+
+  return calculateMetrics(path, headPos, diskSize, baseEnergy, energyFactor);
+}
+
+function runSCAN(diskSize, headPos, direction, queue, alpha, beta, baseEnergy, energyFactor) {
+  const path = [headPos];
+  const isRight = direction.toLowerCase() === 'right';
+  const rightSide = queue.filter(r => r >= headPos).sort((a, b) => a - b);
+  const leftSide = queue.filter(r => r < headPos).sort((a, b) => b - a);
+
+  if (isRight) {
+    rightSide.forEach(r => path.push(r));
+    if (leftSide.length > 0) {
+      if (!rightSide.includes(diskSize - 1)) path.push(diskSize - 1);
+      leftSide.forEach(r => path.push(r));
+    }
+  } else {
+    leftSide.forEach(r => path.push(r));
+    if (rightSide.length > 0) {
+      if (!leftSide.includes(0)) path.push(0);
+      rightSide.forEach(r => path.push(r));
+    }
+  }
+
+  return calculateMetrics(path, headPos, diskSize, baseEnergy, energyFactor);
+}
+
+function runCSCAN(diskSize, headPos, direction, queue, alpha, beta, baseEnergy, energyFactor) {
+  const path = [headPos];
+  const isRight = direction.toLowerCase() === 'right';
+  const rightSide = queue.filter(r => r >= headPos).sort((a, b) => a - b);
+  const leftSide = queue.filter(r => r < headPos).sort((a, b) => a - b);
+
+  if (isRight) {
+    rightSide.forEach(r => path.push(r));
+    if (leftSide.length > 0) {
+      if (!rightSide.includes(diskSize - 1)) path.push(diskSize - 1);
+      path.push(0);
+      leftSide.forEach(r => path.push(r));
+    }
+  } else {
+    const leftDesc = queue.filter(r => r <= headPos).sort((a, b) => b - a);
+    const rightDesc = queue.filter(r => r > headPos).sort((a, b) => b - a);
+    leftDesc.forEach(r => path.push(r));
+    if (rightDesc.length > 0) {
+      if (!leftDesc.includes(0)) path.push(0);
+      path.push(diskSize - 1);
+      rightDesc.forEach(r => path.push(r));
+    }
+  }
+
+  return calculateMetrics(path, headPos, diskSize, baseEnergy, energyFactor);
+}
+
+function runLOOK(diskSize, headPos, direction, queue, alpha, beta, baseEnergy, energyFactor) {
+  const path = [headPos];
+  const isRight = direction.toLowerCase() === 'right';
+  const rightSide = queue.filter(r => r >= headPos).sort((a, b) => a - b);
+  const leftSide = queue.filter(r => r < headPos).sort((a, b) => b - a);
+
+  if (isRight) {
+    rightSide.forEach(r => path.push(r));
+    leftSide.forEach(r => path.push(r));
+  } else {
+    leftSide.forEach(r => path.push(r));
+    rightSide.forEach(r => path.push(r));
+  }
+
+  return calculateMetrics(path, headPos, diskSize, baseEnergy, energyFactor);
+}
+
+function runCLOOK(diskSize, headPos, direction, queue, alpha, beta, baseEnergy, energyFactor) {
+  const path = [headPos];
+  const isRight = direction.toLowerCase() === 'right';
+  const rightSide = queue.filter(r => r >= headPos).sort((a, b) => a - b);
+  const leftSide = queue.filter(r => r < headPos).sort((a, b) => a - b);
+
+  if (isRight) {
+    rightSide.forEach(r => path.push(r));
+    leftSide.forEach(r => path.push(r));
+  } else {
+    const leftDesc = queue.filter(r => r <= headPos).sort((a, b) => b - a);
+    const rightDesc = queue.filter(r => r > headPos).sort((a, b) => b - a);
+    leftDesc.forEach(r => path.push(r));
+    rightDesc.forEach(r => path.push(r));
+  }
+
+  return calculateMetrics(path, headPos, diskSize, baseEnergy, energyFactor);
+}
+
+function runEnergyAware(diskSize, headPos, direction, queue, alpha, beta, baseEnergy, energyFactor) {
+  let pending = [...queue];
+  let curr = headPos;
+  let totalElapsedSeek = 0;
+  const path = [headPos];
+
+  while (pending.length > 0) {
+    let bestIdx = 0;
+    let minScore = Infinity;
+
+    for (let i = 0; i < pending.length; i++) {
+      const seekDist = Math.abs(pending[i] - curr);
+      const waitTime = totalElapsedSeek;
+      const score = (alpha * seekDist) - (beta * waitTime);
+      if (score < minScore) {
+        minScore = score;
+        bestIdx = i;
+      }
+    }
+
+    const nextCyl = pending.splice(bestIdx, 1)[0];
+    totalElapsedSeek += Math.abs(nextCyl - curr);
+    curr = nextCyl;
+    path.push(curr);
+  }
+
+  return calculateMetrics(path, headPos, diskSize, baseEnergy, energyFactor);
+}
+
+function runAllAlgorithms(diskSize, headPos, direction, queue, alpha, beta, baseEnergy, energyFactor) {
+  return {
+    energy_aware: runEnergyAware(diskSize, headPos, direction, queue, alpha, beta, baseEnergy, energyFactor),
+    fcfs: runFCFS(diskSize, headPos, direction, queue, alpha, beta, baseEnergy, energyFactor),
+    sstf: runSSTF(diskSize, headPos, direction, queue, alpha, beta, baseEnergy, energyFactor),
+    scan: runSCAN(diskSize, headPos, direction, queue, alpha, beta, baseEnergy, energyFactor),
+    cscan: runCSCAN(diskSize, headPos, direction, queue, alpha, beta, baseEnergy, energyFactor),
+    look: runLOOK(diskSize, headPos, direction, queue, alpha, beta, baseEnergy, energyFactor),
+    clook: runCLOOK(diskSize, headPos, direction, queue, alpha, beta, baseEnergy, energyFactor)
+  };
+}
+
+let latestResults = null;
+let seekChartInstance = null;
+let movementChartInstance = null;
+let energyChartInstance = null;
+
+let animStep = 0;
+let animTimer = null;
+let isPlaying = false;
+let currentAnimPath = [];
+
+function updateTrophies(results) {
+  const algos = Object.keys(results);
+  
+  let minEnergy = Infinity, bestEnergy = '';
+  algos.forEach(a => {
+    if (results[a].energy < minEnergy) {
+      minEnergy = results[a].energy;
+      bestEnergy = formatAlgoName(a);
+    }
+  });
+  document.getElementById('bestEnergyAlgo').textContent = bestEnergy;
+  document.getElementById('bestEnergyVal').textContent = `${minEnergy} Joules`;
+
+  let minSeek = Infinity, bestSeek = '';
+  algos.forEach(a => {
+    if (results[a].total_movement < minSeek) {
+      minSeek = results[a].total_movement;
+      bestSeek = formatAlgoName(a);
+    }
+  });
+  document.getElementById('bestSeekAlgo').textContent = bestSeek;
+  document.getElementById('bestSeekVal').textContent = `${minSeek} Cylinders`;
+
+  let minWait = Infinity, bestWait = '';
+  algos.forEach(a => {
+    if (results[a].avg_wait < minWait) {
+      minWait = results[a].avg_wait;
+      bestWait = formatAlgoName(a);
+    }
+  });
+  document.getElementById('bestWaitAlgo').textContent = bestWait;
+  document.getElementById('bestWaitVal').textContent = `${minWait} units`;
+}
+
+function updateTable(results) {
+  const tbody = document.getElementById('resultsTableBody');
+  tbody.innerHTML = '';
+
+  const badges = {
+    energy_aware: 'badge-energy',
+    fcfs: 'badge-fcfs',
+    sstf: 'badge-sstf',
+    scan: 'badge-scan',
+    cscan: 'badge-cscan',
+    look: 'badge-look',
+    clook: 'badge-clook'
+  };
+
+  for (const [key, res] of Object.entries(results)) {
+    const tr = document.createElement('tr');
+    tr.style.cursor = 'pointer';
+    tr.title = 'Click to view this algorithm on the hardware track animator';
+    tr.onclick = () => {
+      document.getElementById('animAlgoSelect').value = key;
+      setupAnimation();
+    };
+
+    const isWinner = (key === 'energy_aware');
+
+    tr.innerHTML = `
+      <td>
+        <span class="algo-badge ${badges[key] || 'badge-fcfs'}">
+          ${isWinner ? '⭐ ' : ''}${formatAlgoName(key)}
+        </span>
+      </td>
+      <td style="font-family:var(--font-mono); font-size:0.75rem; max-width:280px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+        ${res.service_order.join(' → ')}
+      </td>
+      <td style="font-weight:700; color:#fff;">${res.total_movement}</td>
+      <td>${res.avg_seek}</td>
+      <td>${res.avg_wait}</td>
+      <td style="font-weight:700; color:#34d399;">${res.energy} J</td>
+      <td>${res.throughput}</td>
+    `;
+    tbody.appendChild(tr);
+  }
+}
+
+function renderCharts(results, diskSize) {
+  const labels = Object.keys(results).map(formatAlgoName);
+  const movements = Object.keys(results).map(k => results[k].total_movement);
+  const energies = Object.keys(results).map(k => results[k].energy);
+
+  const colors = [
+    'rgba(16, 185, 129, 0.85)',
+    'rgba(148, 163, 184, 0.75)',
+    'rgba(59, 130, 246, 0.75)',
+    'rgba(245, 158, 11, 0.75)',
+    'rgba(236, 72, 153, 0.75)',
+    'rgba(168, 85, 247, 0.75)',
+    'rgba(6, 182, 212, 0.75)'
+  ];
+
+  const ctxMovement = document.getElementById('movementChart').getContext('2d');
+  if (movementChartInstance) movementChartInstance.destroy();
+  movementChartInstance = new Chart(ctxMovement, {
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: [{
+        label: 'Total Head Movement (Cylinders)',
+        data: movements,
+        backgroundColor: colors,
+        borderWidth: 1.5,
+        borderRadius: 8
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#0f172a',
+          titleColor: '#fff',
+          bodyColor: '#cbd5e1',
+          borderColor: 'rgba(255,255,255,0.1)',
+          borderWidth: 1,
+          padding: 10
+        }
+      },
+      scales: {
+        x: { ticks: { color: '#94a3b8', font: { family: 'Plus Jakarta Sans', size: 11 } }, grid: { display: false } },
+        y: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(255,255,255,0.06)' } }
+      }
+    }
+  });
+
+  const ctxEnergy = document.getElementById('energyChart').getContext('2d');
+  if (energyChartInstance) energyChartInstance.destroy();
+  energyChartInstance = new Chart(ctxEnergy, {
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: [{
+        label: 'Total Energy (Joules)',
+        data: energies,
+        backgroundColor: colors,
+        borderWidth: 1.5,
+        borderRadius: 8
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#0f172a',
+          titleColor: '#fff',
+          bodyColor: '#cbd5e1',
+          callbacks: {
+            label: (ctx) => `${ctx.raw} Joules`
+          }
+        }
+      },
+      scales: {
+        x: { ticks: { color: '#94a3b8', font: { family: 'Plus Jakarta Sans', size: 11 } }, grid: { display: false } },
+        y: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(255,255,255,0.06)' } }
+      }
+    }
+  });
+
+  renderSeekPathChart(results, diskSize);
+}
+
+function renderSeekPathChart(results, diskSize) {
+  const ctx = document.getElementById('seekPathChart').getContext('2d');
+  if (seekChartInstance) seekChartInstance.destroy();
+
+  const selectedAlgo = document.getElementById('animAlgoSelect').value;
+  const path = results[selectedAlgo].path;
+  const dataPoints = path.map((cyl, step) => ({ x: cyl, y: step }));
+
+  seekChartInstance = new Chart(ctx, {
+    type: 'line',
+    data: {
+      datasets: [{
+        label: `${formatAlgoName(selectedAlgo)} Head Trajectory`,
+        data: dataPoints,
+        borderColor: '#38bdf8',
+        backgroundColor: 'rgba(56, 189, 248, 0.1)',
+        borderWidth: 2.5,
+        pointBackgroundColor: '#fff',
+        pointBorderColor: '#0284c7',
+        pointRadius: 5,
+        pointHoverRadius: 7,
+        tension: 0.15,
+        fill: false
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          labels: { color: '#f1f5f9', font: { weight: 600 } }
+        },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => `Step ${ctx.parsed.y}: Cylinder ${ctx.parsed.x}`
+          }
+        }
+      },
+      scales: {
+        x: {
+          type: 'linear',
+          min: 0,
+          max: diskSize - 1,
+          title: { display: true, text: 'Disk Cylinder (Track #)', color: '#94a3b8', font: { weight: 600 } },
+          ticks: { color: '#94a3b8' },
+          grid: { color: 'rgba(255,255,255,0.06)' }
+        },
+        y: {
+          type: 'linear',
+          title: { display: true, text: 'Execution Step', color: '#94a3b8', font: { weight: 600 } },
+          reverse: true,
+          ticks: { stepSize: 1, color: '#94a3b8' },
+          grid: { color: 'rgba(255,255,255,0.06)' }
+        }
+      }
+    }
+  });
+}
+
+function setupAnimation() {
+  pauseAnimation();
+  if (!latestResults) return;
+
+  const diskSize = parseInt(document.getElementById('diskSize').value) || 200;
+  const selectedAlgo = document.getElementById('animAlgoSelect').value;
+  currentAnimPath = latestResults[selectedAlgo].path;
+  animStep = 0;
+
+  document.getElementById('tickMid').textContent = Math.floor(diskSize / 2);
+  document.getElementById('tickMax').textContent = diskSize - 1;
+
+  const diskRail = document.getElementById('diskRail');
+  const oldPins = diskRail.querySelectorAll('.request-pin');
+  oldPins.forEach(p => p.remove());
+
+  const queue = parseQueue();
+  queue.forEach(cyl => {
+    const pin = document.createElement('div');
+    pin.className = 'request-pin pending';
+    pin.dataset.cyl = cyl;
+    const percent = Math.min(100, Math.max(0, (cyl / (diskSize - 1)) * 100));
+    pin.style.left = `${percent}%`;
+
+    const label = document.createElement('div');
+    label.className = 'pin-label';
+    label.textContent = cyl;
+    pin.appendChild(label);
+
+    diskRail.appendChild(pin);
+  });
+
+  updateAnimFrame();
+  if (seekChartInstance) {
+    renderSeekPathChart(latestResults, diskSize);
+  }
+}
+
+function updateAnimFrame() {
+  if (!currentAnimPath || currentAnimPath.length === 0) return;
+
+  const diskSize = parseInt(document.getElementById('diskSize').value) || 200;
+  const currentCyl = currentAnimPath[animStep];
+  const percent = Math.min(100, Math.max(0, (currentCyl / (diskSize - 1)) * 100));
+
+  const diskHead = document.getElementById('diskHead');
+  diskHead.style.left = `${percent}%`;
+  document.getElementById('headLabel').textContent = `Cyl: ${currentCyl}`;
+
+  const pins = document.querySelectorAll('.request-pin');
+  pins.forEach(pin => {
+    const pinCyl = parseInt(pin.dataset.cyl);
+    const servicedUpToNow = currentAnimPath.slice(0, animStep + 1);
+
+    if (pinCyl === currentCyl) {
+      pin.className = 'request-pin current';
+    } else if (servicedUpToNow.includes(pinCyl)) {
+      pin.className = 'request-pin serviced';
+    } else {
+      pin.className = 'request-pin pending';
+    }
+  });
+
+  const totalSteps = currentAnimPath.length - 1;
+  const statusText = document.getElementById('animStatusText');
+  const statusInd = document.getElementById('statusInd');
+
+  if (animStep === 0) {
+    statusText.textContent = `Start at Initial Head: ${currentCyl}`;
+    statusInd.style.background = '#38bdf8';
+  } else if (animStep < totalSteps) {
+    const prevCyl = currentAnimPath[animStep - 1];
+    const diff = Math.abs(currentCyl - prevCyl);
+    statusText.textContent = `Step ${animStep}/${totalSteps}: Jumped ${diff} cyl to ${currentCyl}`;
+    statusInd.style.background = '#f59e0b';
+  } else {
+    statusText.textContent = `Completed! All requests serviced (${totalSteps} steps).`;
+    statusInd.style.background = '#10b981';
+  }
+}
+
+function playAnimation() {
+  if (isPlaying) return;
+  isPlaying = true;
+  document.getElementById('playBtn').textContent = '⏸';
+
+  const speed = parseInt(document.getElementById('speedSelect').value) || 600;
+
+  animTimer = setInterval(() => {
+    if (animStep < currentAnimPath.length - 1) {
+      animStep++;
+      updateAnimFrame();
+    } else {
+      pauseAnimation();
+    }
+  }, speed);
+}
+
+function pauseAnimation() {
+  isPlaying = false;
+  document.getElementById('playBtn').textContent = '▶';
+  if (animTimer) {
+    clearInterval(animTimer);
+    animTimer = null;
+  }
+}
+
+function stepForward() {
+  pauseAnimation();
+  if (animStep < currentAnimPath.length - 1) {
+    animStep++;
+    updateAnimFrame();
+  }
+}
+
+function stepBackward() {
+  pauseAnimation();
+  if (animStep > 0) {
+    animStep--;
+    updateAnimFrame();
+  }
+}
+
+function formatAlgoName(key) {
+  const map = {
+    energy_aware: 'Energy-Aware (Proposed)',
+    fcfs: 'FCFS',
+    sstf: 'SSTF',
+    scan: 'SCAN',
+    cscan: 'C-SCAN',
+    look: 'LOOK',
+    clook: 'C-LOOK'
+  };
+  return map[key] || key.toUpperCase();
+}
+
+function parseQueue() {
+  const raw = document.getElementById('requestQueue').value;
+  return raw.split(',')
+    .map(s => parseInt(s.trim()))
+    .filter(n => !isNaN(n) && n >= 0);
+}
+
+function executeSimulation() {
+  const diskSize = parseInt(document.getElementById('diskSize').value) || 200;
+  const headPos = parseInt(document.getElementById('headPos').value) || 53;
+  const direction = document.getElementById('direction').value;
+  const queue = parseQueue();
+  const alpha = parseFloat(document.getElementById('alpha').value) || 1.0;
+  const beta = parseFloat(document.getElementById('beta').value) || 0.2;
+  const baseEnergy = parseFloat(document.getElementById('baseEnergy').value) || 5.0;
+  const energyFactor = parseFloat(document.getElementById('energyFactor').value) || 0.05;
+
+  if (queue.length === 0) {
+    alert('Please enter at least one valid cylinder request.');
+    return;
+  }
+
+  document.getElementById('queueCountBadge').textContent = `${queue.length} requests`;
+
+  latestResults = runAllAlgorithms(diskSize, headPos, direction, queue, alpha, beta, baseEnergy, energyFactor);
+
+  updateTrophies(latestResults);
+  updateTable(latestResults);
+  renderCharts(latestResults, diskSize);
+  setupAnimation();
+}
+
+document.getElementById('presetSelect').addEventListener('change', (e) => {
+  const val = e.target.value;
+  if (val === 'galvin') {
+    document.getElementById('diskSize').value = 200;
+    document.getElementById('headPos').value = 53;
+    document.getElementById('requestQueue').value = '98, 183, 37, 122, 14, 124, 65, 67';
+    document.getElementById('direction').value = 'right';
+  } else if (val === 'clustered') {
+    document.getElementById('diskSize').value = 200;
+    document.getElementById('headPos').value = 50;
+    document.getElementById('requestQueue').value = '45, 52, 48, 55, 180, 185, 12, 15';
+    document.getElementById('direction').value = 'right';
+  } else if (val === 'wide') {
+    document.getElementById('diskSize').value = 200;
+    document.getElementById('headPos').value = 100;
+    document.getElementById('requestQueue').value = '10, 190, 25, 175, 40, 160, 55, 145';
+    document.getElementById('direction').value = 'right';
+  } else if (val === 'starve') {
+    document.getElementById('diskSize').value = 200;
+    document.getElementById('headPos').value = 50;
+    document.getElementById('requestQueue').value = '52, 54, 56, 58, 60, 195, 2';
+    document.getElementById('direction').value = 'right';
+  }
+  executeSimulation();
+});
+
+document.getElementById('alpha').addEventListener('input', (e) => {
+  document.getElementById('alphaVal').textContent = parseFloat(e.target.value).toFixed(1);
+});
+document.getElementById('beta').addEventListener('input', (e) => {
+  document.getElementById('betaVal').textContent = parseFloat(e.target.value).toFixed(2);
+});
+
+document.getElementById('runBtn').addEventListener('click', executeSimulation);
+
+document.getElementById('randBtn').addEventListener('click', () => {
+  const diskSize = parseInt(document.getElementById('diskSize').value) || 200;
+  const count = 8;
+  const randQueue = [];
+  while (randQueue.length < count) {
+    const num = Math.floor(Math.random() * (diskSize - 2)) + 1;
+    if (!randQueue.includes(num)) randQueue.push(num);
+  }
+  document.getElementById('headPos').value = Math.floor(Math.random() * (diskSize - 20)) + 10;
+  document.getElementById('requestQueue').value = randQueue.join(', ');
+  executeSimulation();
+});
+
+document.getElementById('resetBtn').addEventListener('click', () => {
+  document.getElementById('presetSelect').value = 'galvin';
+  document.getElementById('diskSize').value = 200;
+  document.getElementById('headPos').value = 53;
+  document.getElementById('direction').value = 'right';
+  document.getElementById('requestQueue').value = '98, 183, 37, 122, 14, 124, 65, 67';
+  document.getElementById('alpha').value = 1.0;
+  document.getElementById('alphaVal').textContent = '1.0';
+  document.getElementById('beta').value = 0.20;
+  document.getElementById('betaVal').textContent = '0.20';
+  document.getElementById('baseEnergy').value = 5.0;
+  document.getElementById('energyFactor').value = 0.05;
+  executeSimulation();
+});
+
+document.getElementById('exportCsvBtn').addEventListener('click', () => {
+  if (!latestResults) return;
+  let csv = 'Algorithm,Service Order,Total Seek (Cylinders),Avg Seek,Avg Waiting Time,Energy (Joules),Throughput (req/cyl)\n';
+  for (const [k, v] of Object.entries(latestResults)) {
+    const orderStr = '"' + v.service_order.join(' -> ') + '"';
+    csv += `${formatAlgoName(k)},${orderStr},${v.total_movement},${v.avg_seek},${v.avg_wait},${v.energy},${v.throughput}\n`;
+  }
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'disk_scheduling_results.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+document.getElementById('playBtn').addEventListener('click', () => {
+  if (isPlaying) pauseAnimation();
+  else playAnimation();
+});
+document.getElementById('stepPrevBtn').addEventListener('click', stepBackward);
+document.getElementById('stepNextBtn').addEventListener('click', stepForward);
+document.getElementById('restartBtn').addEventListener('click', () => {
+  pauseAnimation();
+  animStep = 0;
+  updateAnimFrame();
+});
+document.getElementById('animAlgoSelect').addEventListener('change', setupAnimation);
+
+window.addEventListener('DOMContentLoaded', () => {
+  executeSimulation();
+});
+</script>
+</body>
+</html>
